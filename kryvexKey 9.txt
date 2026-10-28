@@ -134,7 +134,7 @@ local function OpenKryvexHubLoader()
 CreateHubBtn("Murder Mystery 2", "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/message%202.txt")
 CreateHubBtn("Steal A Brainrot Duels ", "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Duels.txt")
 CreateHubBtn("Steal A Brainrot ",
-"https://github.com/WozzyOnTop/KryvexPublic/raw/refs/heads/main/obfuscated_Kryvex_Hub_Sab.txt")
+"https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Kryvex_Hub_Sab.txt")
 CreateHubBtn("Sell A Limons",
 "https://github.com/WozzyOnTop/KryvexPublic/raw/refs/heads/main/obfuscated_Rayfield_Sell_a_Lemon.lua_2.txt")
 CreateHubBtn("Blox Fruits",
