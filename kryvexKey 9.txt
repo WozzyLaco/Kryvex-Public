@@ -132,7 +132,7 @@ local function OpenKryvexHubLoader()
     -- Butonlarınızı ve Script linklerinizi buraya ekleyin:
     CreateHubBtn("Muscle Legends", "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/Kryvexpublic%202.txt")
 CreateHubBtn("Murder Mystery 2", "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/message%202.txt")
-CreateHubBtn("Steal A Brainrot Duels ", "")
+CreateHubBtn("Steal A Brainrot Duels ", "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Duels.txt")
 CreateHubBtn("Steal A Brainrot ",
 "https://github.com/WozzyOnTop/KryvexPublic/raw/refs/heads/main/obfuscated_Kryvex_Hub_Sab.txt")
 CreateHubBtn("Sell A Limons",
