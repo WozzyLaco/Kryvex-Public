@@ -138,7 +138,7 @@ CreateHubBtn("Steal A Brainrot ",
 CreateHubBtn("Sell A Limons",
 "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Rayfield_Sell_a_Lemon.lua_2.txt")
 CreateHubBtn("Blox Fruits",
-"https://github.com/WozzyOnTop/KryvexPublic/raw/refs/heads/main/obfuscated_blox_fruits.txt")
+"https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_blox_fruits.txt")
 CreateHubBtn("+1 speed monkey escape",
 "https://github.com/WozzyOnTop/KryvexPublic/raw/refs/heads/main/obfuscated_1.txt")
 CreateHubBtn("Blade Ball",
