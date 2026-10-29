@@ -146,7 +146,7 @@ CreateHubBtn("Blade Ball",
 CreateHubBtn("survive a million monkeys ",
 "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Monkey.txt ")
 CreateHubBtn(" Evade ",
-" ")
+" https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_evade.txt")
 CreateHubBtn(" Lumber Tycon 2 ),
 " https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_limber_tycon_2.txt")
 
