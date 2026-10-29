@@ -1,4 +1,4 @@
--- — Kryvex Obfuscate || By WozzyLaco
+-- Kryvex Obfuscate || By WozzyLaco
 
 local WSYSotYjj=81
 local mrapULVgBW=32
