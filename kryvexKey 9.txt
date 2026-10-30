@@ -147,7 +147,7 @@ CreateHubBtn("survive a million monkeys ",
 "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Monkey.txt ")
 CreateHubBtn(" Evade ",
 " https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_evade.txt")
-CreateHubBtn(" Lumber Tycon 2 ),
+CreateHubBtn(" Lumber Tycon 2 ",
 " https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_limber_tycon_2.txt")
 
     local loaderEntry = TweenService:Create(LoaderFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
