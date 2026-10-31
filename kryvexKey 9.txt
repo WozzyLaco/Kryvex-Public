@@ -152,7 +152,7 @@ CreateHubBtn(" Lumber Tycon 2 ",
 CreateHubBtn(" Legends Of Speed ",
 "https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Kryvex_Hub_WindUI_Optimized.lua.txt")
 CreateHubBtn(" Ninja Legends",
-" ")
+" https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Kryvex_Hub_NinjaLegends_WindUI.lua.txt")
 CreateHubBtn(" Anime Dice ",
 " ")
 
