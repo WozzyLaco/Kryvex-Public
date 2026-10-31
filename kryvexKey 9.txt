@@ -149,6 +149,12 @@ CreateHubBtn(" Evade ",
 " https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_evade.txt")
 CreateHubBtn(" Lumber Tycon 2 ",
 " https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_limber_tycon_2.txt")
+CreateHubBtn(" Legends Of Speed ",
+"https://github.com/WozzyLaco/Kryvex-Public/raw/refs/heads/main/obfuscated_Kryvex_Hub_WindUI_Optimized.lua.txt")
+CreateHubBtn(" Ninja Legends",
+" ")
+CreateHubBtn(" Anime Dice ",
+" ")
 
     local loaderEntry = TweenService:Create(LoaderFrame, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Position = UDim2.new(0.5, -190, 0.5, -130)
