@@ -3126,7 +3126,7 @@ task.spawn(function()
     end
 end)
 
-FastFarm:AddLabel("❤️ This Tab Made ByHenne
+FastFarm:AddLabel("❤️ This Tab Made ByHenne ")
 
 local pets = window:AddTab("Pets")
 pets:AddLabel("💰 Auto Buy")
