@@ -2526,34 +2526,65 @@ Rock:AddSwitch("👊 Start Rock V2 Farm", function(Value)
     end
 end)
 
---// =========================
---// FAST FARM
---// =========================
-
-local FastFarm = window:AddTab("Fast Farm")
+-- ============================================================
+-- FAST FARM TAB
+-- ============================================================
 
 local services = {
     players = game:GetService("Players"),
     replicatedstorage = game:GetService("ReplicatedStorage"),
     runservice = game:GetService("RunService"),
+    tws = game:GetService("TweenService"),
     userinputservice = game:GetService("UserInputService"),
     httpservice = game:GetService("HttpService"),
     virtualinputmanager = game:GetService("VirtualInputManager"),
+    lighting = game:GetService("Lighting"),
     startergui = game:GetService("StarterGui"),
     collectionservice = game:GetService("CollectionService")
 }
 
-local lp = services.players.LocalPlayer
-local muscleEvent = lp:WaitForChild("muscleEvent")
-local leaderstats = lp:WaitForChild("leaderstats")
-local strengthVal = leaderstats:WaitForChild("Strength")
-local rebirthsVal = leaderstats:WaitForChild("Rebirths")
-local durabilityVal = lp:WaitForChild("Durability")
+local lp = {
+    player = services.players.LocalPlayer,
+    userid = services.players.LocalPlayer.UserId,
+    username = services.players.LocalPlayer.Name,
+    displayname = services.players.LocalPlayer.DisplayName
+}
 
---// =========================
---// PET CONFIG
---// =========================
+services.muscleEvent = lp.player:WaitForChild("muscleEvent")
+services.touchParts = function(part, hand, state)
+    if type(firetouchinterest) ~= "function" or not part or not hand then return false end
+    return pcall(firetouchinterest, part, hand, state)
+end
 
+local function formatNumber(num)
+    if num >= 1e18 then return string.format("%.2fQi", num/1e18) end
+    if num >= 1e15 then return string.format("%.2fQa", num/1e15) end
+    if num >= 1e12 then return string.format("%.2fT", num/1e12) end
+    if num >= 1e9 then return string.format("%.2fB", num/1e9) end
+    if num >= 1e6 then return string.format("%.2fM", num/1e6) end
+    if num >= 1e3 then return string.format("%.2fK", num/1e3) end
+    return string.format("%.0f", num)
+end
+
+local function formatRate(ratePerSecond)
+    return formatNumber(ratePerSecond) .. "/s | "
+        .. formatNumber(ratePerSecond * 60) .. "/min | "
+        .. formatNumber(ratePerSecond * 3600) .. "/h | "
+        .. formatNumber(ratePerSecond * 86400) .. "/d"
+end
+
+local function readDataPing()
+    local success, ping = pcall(function()
+        return game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
+    end)
+    if success and type(ping) == "number" and ping == ping and ping >= 0 and ping < math.huge then
+        return ping
+    end
+end
+
+local FastFarm = window:AddTab("Fast Farm")
+
+-- ============ PET TABLE ============
 local PETS = {
     ["Omega Overlord"] = {repSpeed = 20, strength = 0, durability = 0, rebirth = 0},
     ["Swift Samurai"] = {repSpeed = 15, strength = 0, durability = 0, rebirth = 0},
@@ -2572,115 +2603,25 @@ local PETS = {
 
 local MAX_PET_SLOTS = 12
 local TARGET_REP_SPEED = 100
-local equipPetEvent = services.replicatedstorage.rEvents.equipPetEvent
 
-local function getOwnedConfiguredPets()
-    local owned = {}
-    local petsFolder = lp:FindFirstChild("petsFolder")
-    if not petsFolder then return owned end
-    for _, folder in ipairs(petsFolder:GetChildren()) do
+local function applyPetLoadout(selected, isCurrent)
+    local remote = services.replicatedstorage.rEvents.equipPetEvent
+    for _, folder in ipairs(lp.player.petsFolder:GetChildren()) do
         if folder:IsA("Folder") then
             for _, pet in ipairs(folder:GetChildren()) do
-                local cfg = PETS[pet.Name]
-                if cfg then
-                    table.insert(owned, {
-                        instance = pet,
-                        repSpeed = cfg.repSpeed or 0,
-                        strength = cfg.strength or 0,
-                        durability = cfg.durability or 0,
-                        rebirth = cfg.rebirth or 0,
-                    })
-                end
-            end
-        end
-    end
-    return owned
-end
-
-local function applyPetLoadout(selected)
-    local petsFolder = lp:FindFirstChild("petsFolder")
-    if petsFolder then
-        for _, folder in ipairs(petsFolder:GetChildren()) do
-            if folder:IsA("Folder") then
-                for _, pet in ipairs(folder:GetChildren()) do
-                    equipPetEvent:FireServer("unequipPet", pet)
-                end
+                if isCurrent and not isCurrent() then return false end
+                remote:FireServer("unequipPet", pet)
             end
         end
     end
     task.wait(0.1)
     for _, pet in ipairs(selected) do
-        equipPetEvent:FireServer("equipPet", pet)
+        if isCurrent and not isCurrent() then return false end
+        remote:FireServer("equipPet", pet)
     end
     task.wait(0.1)
+    return not isCurrent or isCurrent()
 end
-
-local function equipBestFarmingPets()
-    local pets = getOwnedConfiguredPets()
-    local selected, equipped = {}, {}
-    local count, repSpeed = 0, 0
-    table.sort(pets, function(a, b) return a.repSpeed > b.repSpeed end)
-    for _, pet in ipairs(pets) do
-        if count >= MAX_PET_SLOTS or repSpeed >= TARGET_REP_SPEED then break end
-        if pet.repSpeed > 0 then
-            table.insert(selected, pet.instance)
-            equipped[pet.instance] = true
-            count = count + 1
-            repSpeed = repSpeed + pet.repSpeed
-        end
-    end
-    local remaining = {}
-    for _, pet in ipairs(pets) do
-        if not equipped[pet.instance] then table.insert(remaining, pet) end
-    end
-    table.sort(remaining, function(a, b)
-        return (a.strength + a.durability) > (b.strength + b.durability)
-    end)
-    for _, pet in ipairs(remaining) do
-        if count >= MAX_PET_SLOTS then break end
-        if pet.strength > 0 or pet.durability > 0 then
-            table.insert(selected, pet.instance)
-            count = count + 1
-        end
-    end
-    applyPetLoadout(selected)
-    return repSpeed, count
-end
-
-local function equipBestRebirthPets()
-    local pets = getOwnedConfiguredPets()
-    local selected = {}
-    local count, mult = 0, 0
-    table.sort(pets, function(a, b) return a.rebirth > b.rebirth end)
-    for _, pet in ipairs(pets) do
-        if count >= MAX_PET_SLOTS then break end
-        if pet.rebirth > 0 then
-            table.insert(selected, pet.instance)
-            count = count + 1
-            mult = mult + pet.rebirth
-        end
-    end
-    applyPetLoadout(selected)
-    return mult, count
-end
-
---// =========================
---// FORMAT
---// =========================
-
-local function formatNumber(num)
-    if num >= 1e18 then return string.format("%.2fQi", num / 1e18) end
-    if num >= 1e15 then return string.format("%.2fQa", num / 1e15) end
-    if num >= 1e12 then return string.format("%.2fT", num / 1e12) end
-    if num >= 1e9 then return string.format("%.2fB", num / 1e9) end
-    if num >= 1e6 then return string.format("%.2fM", num / 1e6) end
-    if num >= 1e3 then return string.format("%.2fK", num / 1e3) end
-    return string.format("%.0f", num)
-end
-
---// =========================
---// TOKEN BUCKET SENDER
---// =========================
 
 local function sendTrainingReps(state, rate, maxBurst, canSend)
     local now = os.clock()
@@ -2689,16 +2630,12 @@ local function sendTrainingReps(state, rate, maxBurst, canSend)
     state.Tokens = math.min(maxBurst, (state.Tokens or 0) + rate * elapsed)
     local sent = 0
     while state.Tokens >= 1 and canSend() do
-        muscleEvent:FireServer("rep")
+        services.muscleEvent:FireServer("rep")
         state.Tokens = state.Tokens - 1
         sent = sent + 1
     end
     return sent
 end
-
---// =========================
---// TIMER / STAT GAIN
---// =========================
 
 local function getElapsed(tab)
     return tab.totalElapsed + (tab.timerStarted and os.clock() - tab.startedAt or 0)
@@ -2711,422 +2648,313 @@ local function setTimerRunning(tab, enabled)
 end
 
 local function recordStatGain(tab, key, value)
-    local prev = tab.statSamples[key]
+    local previous = tab.statSamples[key]
     tab.statSamples[key] = value
-    if tab.running and tab.timerStarted and prev then
-        tab.statGains[key] = tab.statGains[key] + math.max(0, value - prev)
+    if tab.running and tab.timerStarted and previous then
+        tab.statGains[key] = tab.statGains[key] + math.max(0, value - previous)
     end
 end
 
-local function formatRuntime(elapsed)
-    return string.format("Runtime: %dd %dh %dm %ds",
-        math.floor(elapsed / 86400),
-        math.floor(elapsed % 86400 / 3600),
-        math.floor(elapsed % 3600 / 60),
-        math.floor(elapsed % 60))
+local function updateRuntimeLabel(tab)
+    local elapsed = getElapsed(tab)
+    tab.Runtime.Text = string.format("Runtime: %dd %dh %dm %ds",
+        math.floor(elapsed / 86400), math.floor(elapsed % 86400 / 3600),
+        math.floor(elapsed % 3600 / 60), math.floor(elapsed % 60))
 end
 
---// =========================
---// REBIRTHS TAB
---// =========================
-
-FastFarm:AddHeading("Rebirth Farm")
-
-local rb = {
-    running = false,
-    generation = 0,
-    workerActive = false,
-    startedAt = 0,
-    totalElapsed = 0,
-    timerStarted = false,
-    baselineReady = false,
-    measuredCycles = 0,
-    nextRequestAt = 0,
-    cooldown = 6,
-    statSamples = {Rebirths = rebirthsVal.Value},
-    statGains = {Rebirths = 0},
-    adaptive = {
-        TargetSeconds = 3,
-        MinRate = 3,
-        MaxRate = 50,
-        SendRate = 10,
-        ProbeRate = 10,
-        ProbeReps = 10,
-        FeedbackTimeout = 1,
-        StrengthPerRep = nil,
-    }
-}
-
-local rbStatus = FastFarm:AddLabel("Rebirth Status: Inactive")
-local rbRuntime = FastFarm:AddLabel("Rebirth Runtime: 0d 0h 0m 0s")
-local rbStats = FastFarm:AddLabel("Rebirths: " .. formatNumber(rebirthsVal.Value) .. " | Gained: 0")
-local rbAverage = FastFarm:AddLabel("Average: -- / Hour | -- / Day | -- / Week")
-
-local function rbUpdateStats()
-    rbStats.Text = "Rebirths: " .. formatNumber(rebirthsVal.Value)
-        .. " | Gained: " .. formatNumber(rb.statGains.Rebirths)
-end
-
-local function rbUpdateRuntime()
-    rbRuntime.Text = "Rebirth Runtime: " .. formatRuntime(getElapsed(rb))
-end
-
-local function rbUpdateAverage()
-    local elapsed = getElapsed(rb)
-    if elapsed <= 0 then return end
-    local hourly = rb.statGains.Rebirths / elapsed * 3600
-    rbAverage.Text = string.format("Average: %s / Hour | %s / Day | %s / Week",
-        formatNumber(hourly), formatNumber(hourly * 24), formatNumber(hourly * 168))
-end
-
-FastFarm:AddButton("Reset Rebirth Calcs", function()
-    rb.totalElapsed = 0
-    rb.startedAt = os.clock()
-    rb.timerStarted = rb.running and rb.timerStarted
-    rb.statGains.Rebirths = 0
-    rb.statSamples.Rebirths = rebirthsVal.Value
-    rb.baselineReady = false
-    rb.measuredCycles = 0
-    rbAverage.Text = "Average: -- / Hour | -- / Day | -- / Week"
-    rbUpdateStats()
-    rbUpdateRuntime()
-end)
-
-local function rbIsCurrent(gen)
-    return rb.running and rb.generation == gen
-end
-
-local function rbRecordRebirth()
-    local current = rebirthsVal.Value
-    local previous = rb.statSamples.Rebirths
-    if current > previous then
-        rb.nextRequestAt = os.clock() + rb.cooldown
-        if rb.running then
-            if not rb.baselineReady then
-                rb.baselineReady = true
-                rb.statSamples.Rebirths = current
-                setTimerRunning(rb, true)
-            else
-                recordStatGain(rb, "Rebirths", current)
-                rb.measuredCycles = rb.measuredCycles + 1
-                if rb.measuredCycles >= 2 then rbUpdateAverage() end
-            end
-        end
-    end
-    rb.statSamples.Rebirths = current
-    rbUpdateStats()
-end
-
-rebirthsVal:GetPropertyChangedSignal("Value"):Connect(rbRecordRebirth)
-
-local function rbUpdateAdaptive(cycle, finalSample)
-    local now = os.clock()
-    if not finalSample and now - cycle.SampleAt < 0.25 then return end
-    local strength = strengthVal.Value
-    local gain = strength - cycle.StartStrength
-    if gain > 0 and cycle.Sent > 0 and (finalSample or strength > cycle.SampleStrength) then
-        rb.adaptive.StrengthPerRep = gain / cycle.Sent
-        cycle.SampleStrength = strength
-    end
-    if rb.adaptive.StrengthPerRep and rb.adaptive.StrengthPerRep > 0 then
-        local reps = math.max(1, math.ceil(math.max(0, cycle.Target - cycle.StartStrength) / rb.adaptive.StrengthPerRep))
-        rb.adaptive.SendRate = math.clamp(reps / rb.adaptive.TargetSeconds, rb.adaptive.MinRate, rb.adaptive.MaxRate)
-    else
-        rb.adaptive.SendRate = rb.adaptive.ProbeRate
-    end
-    cycle.SampleAt = now
-end
-
-local function rbPerformRebirth(gen)
-    local adaptive = rb.adaptive
-    local cycle = {
-        Target = 5000 + rebirthsVal.Value * 2550,
-        Rebirths = rebirthsVal.Value,
-        SampleAt = os.clock(),
-        StartStrength = strengthVal.Value,
-        SampleStrength = strengthVal.Value,
-        LastSentAt = os.clock(),
-        Sent = 0,
-        Tokens = 0,
-        LastAt = os.clock(),
-        StatusAt = -math.huge,
-        TrainingSeconds = 0
-    }
-    adaptive.SendRate = adaptive.StrengthPerRep and math.clamp(
-        math.max(0, cycle.Target - cycle.StartStrength) / adaptive.StrengthPerRep / adaptive.TargetSeconds,
-        adaptive.MinRate, adaptive.MaxRate) or adaptive.ProbeRate
-    cycle.RepBudget = adaptive.StrengthPerRep and math.max(adaptive.ProbeReps, math.ceil(
-        math.max(0, cycle.Target - cycle.StartStrength) / adaptive.StrengthPerRep)) or adaptive.ProbeReps
-    local lastTrainingAt = os.clock()
-    local function needsTraining()
-        return rbIsCurrent(gen) and rebirthsVal.Value == cycle.Rebirths and strengthVal.Value < cycle.Target
-    end
-    while needsTraining() do
-        local now = os.clock()
-        local character = lp.Character
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        if humanoid and humanoid.Health > 0 then
-            cycle.TrainingSeconds = cycle.TrainingSeconds + math.max(0, now - lastTrainingAt)
-            rbUpdateAdaptive(cycle)
-            if cycle.Sent >= cycle.RepBudget then
-                cycle.Tokens = 0
-                cycle.LastAt = now
-                if now - cycle.LastSentAt >= adaptive.FeedbackTimeout then
-                    local missing = math.max(0, cycle.Target - strengthVal.Value)
-                    local extra = adaptive.StrengthPerRep and math.ceil(missing / adaptive.StrengthPerRep) or adaptive.ProbeReps
-                    cycle.RepBudget = cycle.Sent + math.clamp(extra, math.ceil(adaptive.ProbeReps / 2), adaptive.ProbeReps)
+local function getOwnedConfiguredPets()
+    local ownedPets = {}
+    for _, folder in ipairs(lp.player.petsFolder:GetChildren()) do
+        if folder:IsA("Folder") then
+            for _, pet in ipairs(folder:GetChildren()) do
+                local config = PETS[pet.Name]
+                if config then
+                    table.insert(ownedPets, {
+                        instance = pet,
+                        name = pet.Name,
+                        repSpeed = config.repSpeed or 0,
+                        strength = config.strength or 0,
+                        durability = config.durability or 0,
+                        rebirth = config.rebirth or 0,
+                    })
                 end
-            else
-                local budget = cycle.RepBudget - cycle.Sent
-                local sent = sendTrainingReps(cycle, adaptive.SendRate, 5, function()
-                    if budget <= 0 or not needsTraining() then return false end
-                    budget = budget - 1
-                    return true
-                end)
-                cycle.Sent = cycle.Sent + sent
-                if sent > 0 then cycle.LastSentAt = now end
             end
-            if now - cycle.StatusAt >= 0.25 then
-                rbStatus.Text = (cycle.Sent >= cycle.RepBudget and "Rebirth Status: Waiting for Strength Update | " or "Rebirth Status: Training | ")
-                    .. string.format("%.1fs", cycle.TrainingSeconds) .. " | " .. formatNumber(adaptive.SendRate) .. " reps/s"
-                cycle.StatusAt = now
-            end
-        else
-            cycle.Tokens = 0
-            cycle.LastAt = now
-            rbStatus.Text = "Rebirth Status: Waiting for Respawn"
-        end
-        lastTrainingAt = now
-        services.runservice.Heartbeat:Wait()
-    end
-    if not rbIsCurrent(gen) or rebirthsVal.Value ~= cycle.Rebirths then return end
-    rbUpdateAdaptive(cycle, true)
-    rbStatus.Text = "Rebirth Status: Switching to Rebirth Pets"
-    equipBestRebirthPets()
-    task.wait(0.25)
-    while rbIsCurrent(gen) and rebirthsVal.Value == cycle.Rebirths do
-        local remaining = rb.nextRequestAt - os.clock()
-        if remaining > 0 then
-            rbStatus.Text = "Rebirth Status: Cooldown | " .. string.format("%.1fs", remaining)
-            task.wait(math.min(remaining, 0.1))
-        else
-            rb.nextRequestAt = os.clock() + rb.cooldown
-            services.replicatedstorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
-            rbRecordRebirth()
         end
     end
+    return ownedPets
 end
 
-local function rbStartWorker()
-    if rb.workerActive then return end
-    rb.workerActive = true
-    task.spawn(function(gen)
-        local success = pcall(function()
-            while rbIsCurrent(gen) do
-                equipBestFarmingPets()
-                if not rbIsCurrent(gen) then break end
-                rbPerformRebirth(gen)
-                task.wait()
-            end
-        end)
-        rb.workerActive = false
-        if not success then task.wait(0.5) end
-        if rb.running then rbStartWorker() end
-    end, rb.generation)
-end
+local function equipBestFarmingPets(isCurrent)
+    if isCurrent and not isCurrent() then return end
+    local pets = getOwnedConfiguredPets()
+    local selected = {}
+    local equipped = {}
+    local equippedCount = 0
+    local currentRepSpeed = 0
 
-FastFarm:AddSwitch("Pack Rebirth (Auto)", function(state)
-    rbRecordRebirth()
-    setTimerRunning(rb, state and rb.baselineReady)
-    rb.statSamples.Rebirths = rebirthsVal.Value
-    rb.generation = rb.generation + 1
-    rb.running = state
-    if state then
-        rbStatus.Text = "Rebirth Status: Rebirthing"
-        rbUpdateStats()
-        rbStartWorker()
-    else
-        rbStatus.Text = "Rebirth Status: Paused"
+    table.sort(pets, function(a, b) return a.repSpeed > b.repSpeed end)
+
+    for _, pet in ipairs(pets) do
+        if equippedCount >= MAX_PET_SLOTS or currentRepSpeed >= TARGET_REP_SPEED then break end
+        if pet.repSpeed > 0 then
+            table.insert(selected, pet.instance)
+            equipped[pet.instance] = true
+            equippedCount = equippedCount + 1
+            currentRepSpeed = currentRepSpeed + pet.repSpeed
+        end
     end
-    rbUpdateRuntime()
-end)
 
---// =========================
---// STRENGTH (ADAPTIVE) TAB
---// =========================
+    local remainingPets = {}
+    for _, pet in ipairs(pets) do
+        if not equipped[pet.instance] then
+            table.insert(remainingPets, pet)
+        end
+    end
 
-FastFarm:AddHeading("Strength Farm (Adaptive)")
+    table.sort(remainingPets, function(a, b)
+        return (a.strength + a.durability) > (b.strength + b.durability)
+    end)
 
-local st = {
-    running = false,
-    workerActive = false,
-    startedAt = 0,
-    totalElapsed = 0,
-    timerStarted = false,
-    statSamples = {Strength = strengthVal.Value, Durability = durabilityVal.Value},
-    statGains = {Strength = 0, Durability = 0},
-    initialSendRate = 200,
-    maxSendRate = 462,
-    sendRate = 200,
-    maxBurst = 24,
-    Tokens = 0,
-    controlInterval = 0.5,
-    lastControlAt = tick(),
-    lastControlStrength = strengthVal.Value,
-    lastControlDurability = durabilityVal.Value,
-    stalledIntervals = 0,
-    LastAt = os.clock(),
-    nextAverageElapsed = 10
-}
+    for _, pet in ipairs(remainingPets) do
+        if equippedCount >= MAX_PET_SLOTS then break end
+        if pet.strength > 0 or pet.durability > 0 then
+            table.insert(selected, pet.instance)
+            equipped[pet.instance] = true
+            equippedCount = equippedCount + 1
+        end
+    end
 
-local stStatus = FastFarm:AddLabel("Strength Status: Inactive")
-local stRuntime = FastFarm:AddLabel("Strength Runtime: 0d 0h 0m 0s")
-local stStrengthStats = FastFarm:AddLabel("Strength: " .. formatNumber(strengthVal.Value) .. " | Gained: 0")
-local stDuraStats = FastFarm:AddLabel("Durability: " .. formatNumber(durabilityVal.Value) .. " | Gained: 0")
-local stAverage = FastFarm:AddLabel("Str Ø: --/s | --/min | --/h | --/d")
-
-local function stUpdateStats()
-    stStrengthStats.Text = "Strength: " .. formatNumber(strengthVal.Value)
-        .. " | Gained: " .. (st.running and not st.timerStarted and "Preparing" or formatNumber(st.statGains.Strength))
-    stDuraStats.Text = "Durability: " .. formatNumber(durabilityVal.Value)
-        .. " | Gained: " .. (st.running and not st.timerStarted and "Preparing" or formatNumber(st.statGains.Durability))
+    applyPetLoadout(selected, isCurrent)
+    return currentRepSpeed, equippedCount
 end
 
-local function stUpdateRuntime()
-    stRuntime.Text = "Strength Runtime: " .. formatRuntime(getElapsed(st))
+local function equipBestRebirthPets(isCurrent)
+    if isCurrent and not isCurrent() then return end
+    local pets = getOwnedConfiguredPets()
+    local selected = {}
+
+    table.sort(pets, function(a, b) return a.rebirth > b.rebirth end)
+
+    local equippedCount = 0
+    local totalRebirthMultiplier = 0
+
+    for _, pet in ipairs(pets) do
+        if equippedCount >= MAX_PET_SLOTS then break end
+        if pet.rebirth > 0 then
+            table.insert(selected, pet.instance)
+            equippedCount = equippedCount + 1
+            totalRebirthMultiplier = totalRebirthMultiplier + pet.rebirth
+        end
+    end
+
+    applyPetLoadout(selected, isCurrent)
+    return totalRebirthMultiplier, equippedCount
 end
 
-local function stUpdateAverage()
-    local elapsed = getElapsed(st)
+-- ============ STRENGTH FARM ============
+FastFarm.leaderstats = lp.player:WaitForChild("leaderstats")
+FastFarm.strength = FastFarm.leaderstats:WaitForChild("Strength")
+FastFarm.durability = lp.player:WaitForChild("Durability")
+FastFarm.running = false
+FastFarm.workerActive = false
+FastFarm.startedAt = 0
+FastFarm.totalElapsed = 0
+FastFarm.timerStarted = false
+FastFarm.gainedBaselineSet = false
+FastFarm.statSamples = {Strength = FastFarm.strength.Value, Durability = FastFarm.durability.Value}
+FastFarm.statGains = {Strength = 0, Durability = 0}
+FastFarm.initialSendRate = 200
+FastFarm.maxSendRate = 462
+FastFarm.sendRate = math.min(FastFarm.initialSendRate, FastFarm.maxSendRate)
+FastFarm.maxBurst = 24
+FastFarm.Tokens = 0
+FastFarm.controlInterval = 0.5
+FastFarm.lastControlAt = tick()
+FastFarm.lastControlStrength = FastFarm.strength.Value
+FastFarm.lastControlDurability = FastFarm.durability.Value
+FastFarm.stalledIntervals = 0
+FastFarm.LastAt = os.clock()
+FastFarm.nextAverageElapsed = 10
+
+FastFarm.Status = FastFarm:AddLabel("Status: Inactive")
+FastFarm.Status.TextColor3 = Color3.fromRGB(255, 80, 80)
+FastFarm.Runtime = FastFarm:AddLabel("Runtime: 0d 0h 0m 0s")
+FastFarm.StrengthStats = FastFarm:AddLabel("Strength: " .. formatNumber(FastFarm.strength.Value) .. " | Gained: 0")
+FastFarm.DurabilityStats = FastFarm:AddLabel("Durability: " .. formatNumber(FastFarm.durability.Value) .. " | Gained: 0")
+FastFarm.StrengthAverage = FastFarm:AddLabel("Str Ø: --/s | --/min | --/h | --/d")
+FastFarm.DurabilityAverage = FastFarm:AddLabel("Dur Ø: --/s | --/min | --/h | --/d")
+
+FastFarm.updateRuntime = function()
+    updateRuntimeLabel(FastFarm)
+end
+
+FastFarm.updateStats = function()
+    FastFarm.StrengthStats.Text = "Strength: " .. formatNumber(FastFarm.strength.Value)
+        .. " | Gained: " .. (FastFarm.running and not FastFarm.timerStarted
+            and "Preparing" or formatNumber(FastFarm.statGains.Strength))
+    FastFarm.DurabilityStats.Text = "Durability: " .. formatNumber(FastFarm.durability.Value)
+        .. " | Gained: " .. (FastFarm.running and not FastFarm.timerStarted
+            and "Preparing" or formatNumber(FastFarm.statGains.Durability))
+end
+
+FastFarm.updateAverage = function()
+    local elapsed = getElapsed(FastFarm)
     if elapsed <= 0 then return end
-    local sRate = st.statGains.Strength / elapsed
-    local dRate = st.statGains.Durability / elapsed
-    stAverage.Text = "Str Ø: " .. formatNumber(sRate) .. "/s | " .. formatNumber(sRate * 60) .. "/min | "
-        .. formatNumber(sRate * 3600) .. "/h | " .. formatNumber(sRate * 86400) .. "/d"
+    FastFarm.StrengthAverage.Text = "Str Ø: " .. formatRate(FastFarm.statGains.Strength / elapsed)
+    FastFarm.DurabilityAverage.Text = "Dur Ø: " .. formatRate(FastFarm.statGains.Durability / elapsed)
 end
 
-FastFarm:AddButton("Reset Strength Calcs", function()
-    st.totalElapsed = 0
-    st.startedAt = os.clock()
-    st.timerStarted = st.running and st.timerStarted
-    st.statGains.Strength = 0
-    st.statGains.Durability = 0
-    st.statSamples.Strength = strengthVal.Value
-    st.statSamples.Durability = durabilityVal.Value
-    st.nextAverageElapsed = 10
-    stAverage.Text = "Str Ø: --/s | --/min | --/h | --/d"
-    stUpdateStats()
-    stUpdateRuntime()
+FastFarm:AddButton("Reset Calcs", function()
+    FastFarm.totalElapsed = 0
+    FastFarm.startedAt = os.clock()
+    FastFarm.timerStarted = FastFarm.running and FastFarm.timerStarted
+    FastFarm.nextAverageElapsed = 10
+    FastFarm.statGains.Strength = 0
+    FastFarm.statGains.Durability = 0
+    FastFarm.statSamples.Strength = FastFarm.strength.Value
+    FastFarm.statSamples.Durability = FastFarm.durability.Value
+    FastFarm.StrengthAverage.Text = "Str Ø: --/s | --/min | --/h | --/d"
+    FastFarm.DurabilityAverage.Text = "Dur Ø: --/s | --/min | --/h | --/d"
+    FastFarm.updateStats()
+    FastFarm.updateRuntime()
 end)
 
-local function stStartMeasurement()
-    if not st.running or st.timerStarted or st.sendRate < st.maxSendRate then return end
-    st.statSamples.Strength = strengthVal.Value
-    st.statSamples.Durability = durabilityVal.Value
-    setTimerRunning(st, true)
-    st.nextAverageElapsed = getElapsed(st) + 10
-    stUpdateStats()
+FastFarm.startMeasurement = function()
+    if not FastFarm.running or FastFarm.timerStarted
+        or FastFarm.sendRate < FastFarm.maxSendRate then return end
+    FastFarm.statSamples.Strength = FastFarm.strength.Value
+    FastFarm.statSamples.Durability = FastFarm.durability.Value
+    setTimerRunning(FastFarm, true)
+    FastFarm.nextAverageElapsed = getElapsed(FastFarm) + 10
+    FastFarm.updateStats()
 end
 
-local function stUpdateAdaptiveRate()
-    local now = tick()
-    local elapsed = now - st.lastControlAt
-    if elapsed < st.controlInterval then return end
-    local progress = strengthVal.Value > st.lastControlStrength or durabilityVal.Value > st.lastControlDurability
-    if progress then
-        st.stalledIntervals = 0
-        st.sendRate = math.min(st.maxSendRate, st.sendRate * 1.12)
-        stStatus.Text = (st.sendRate >= st.maxSendRate and "Strength Status: Farming | " or "Strength Status: Preparing | ")
-            .. formatNumber(st.sendRate) .. " reps/s"
+FastFarm.updateAdaptiveRate = function()
+    FastFarm.controlNow = tick()
+    FastFarm.controlElapsed = FastFarm.controlNow - FastFarm.lastControlAt
+    if FastFarm.controlElapsed < FastFarm.controlInterval then return end
+
+    FastFarm.serverProgress = FastFarm.strength.Value > FastFarm.lastControlStrength
+        or FastFarm.durability.Value > FastFarm.lastControlDurability
+
+    if FastFarm.serverProgress then
+        FastFarm.stalledIntervals = 0
+        FastFarm.sendRate = math.min(FastFarm.maxSendRate, FastFarm.sendRate * 1.12)
+        FastFarm.Status.Text = (FastFarm.sendRate >= FastFarm.maxSendRate
+            and "Status: Farming | " or "Status: Preparing | ") .. formatNumber(FastFarm.sendRate) .. " reps/s"
+        FastFarm.Status.TextColor3 = Color3.fromRGB(80, 255, 120)
     else
-        st.stalledIntervals = st.stalledIntervals + 1
+        FastFarm.stalledIntervals = FastFarm.stalledIntervals + 1
     end
-    if st.stalledIntervals >= 2 then
-        st.sendRate = math.max(st.initialSendRate, st.sendRate * 0.65)
-        st.Tokens = 0
-        stStatus.Text = "Strength Status: Slowing for server | " .. formatNumber(st.sendRate) .. " reps/s"
+
+    if FastFarm.stalledIntervals >= 2 then
+        FastFarm.sendRate = math.max(math.min(FastFarm.initialSendRate, FastFarm.maxSendRate), FastFarm.sendRate * 0.65)
+        FastFarm.Tokens = 0
+        FastFarm.Status.Text = "Status: Slowing for server | " .. formatNumber(FastFarm.sendRate) .. " reps/s"
+        FastFarm.Status.TextColor3 = Color3.fromRGB(255, 180, 70)
     end
-    st.lastControlAt = now
-    st.lastControlStrength = strengthVal.Value
-    st.lastControlDurability = durabilityVal.Value
+
+    FastFarm.lastControlAt = FastFarm.controlNow
+    FastFarm.lastControlStrength = FastFarm.strength.Value
+    FastFarm.lastControlDurability = FastFarm.durability.Value
 end
 
-local function stWorkerLoop()
-    st.LastAt = os.clock()
-    local function isRunning() return st.running end
-    while st.running do
-        stUpdateAdaptiveRate()
-        stStartMeasurement()
-        sendTrainingReps(st, st.sendRate, st.maxBurst, isRunning)
+FastFarm.workerLoop = function()
+    FastFarm.LastAt = os.clock()
+    local function isRunning() return FastFarm.running end
+    while FastFarm.running do
+        FastFarm.updateAdaptiveRate()
+        FastFarm.startMeasurement()
+        sendTrainingReps(FastFarm, FastFarm.sendRate, FastFarm.maxBurst, isRunning)
         services.runservice.Heartbeat:Wait()
     end
-    st.workerActive = false
-    if st.running then stStartWorker() end
+    FastFarm.workerActive = false
+    if FastFarm.running then FastFarm.startWorker() end
 end
 
-function stStartWorker()
-    if st.workerActive then return end
-    st.workerActive = true
-    task.spawn(stWorkerLoop)
+FastFarm.startWorker = function()
+    if FastFarm.workerActive then return end
+    FastFarm.workerActive = true
+    task.spawn(FastFarm.workerLoop)
 end
 
-strengthVal:GetPropertyChangedSignal("Value"):Connect(function()
-    recordStatGain(st, "Strength", strengthVal.Value)
-    stUpdateStats()
-end)
-durabilityVal:GetPropertyChangedSignal("Value"):Connect(function()
-    recordStatGain(st, "Durability", durabilityVal.Value)
-    stUpdateStats()
+FastFarm.strength.Changed:Connect(function()
+    recordStatGain(FastFarm, "Strength", FastFarm.strength.Value)
+    FastFarm.updateStats()
 end)
 
-FastFarm:AddTextBox("Max reps/s (Default: 462)", function(text)
-    local v = tonumber(text)
-    if not v or v ~= v or v == math.huge or v == -math.huge then return end
-    v = math.max(1, v)
-    st.maxSendRate = v
-    st.sendRate = math.min(st.sendRate, st.maxSendRate)
+FastFarm.durability.Changed:Connect(function()
+    recordStatGain(FastFarm, "Durability", FastFarm.durability.Value)
+    FastFarm.updateStats()
 end)
 
-FastFarm:AddSwitch("Fast Rep (Adaptive)", function(state)
-    recordStatGain(st, "Strength", strengthVal.Value)
-    recordStatGain(st, "Durability", durabilityVal.Value)
-    setTimerRunning(st, false)
-    st.statSamples.Strength = strengthVal.Value
-    st.statSamples.Durability = durabilityVal.Value
-    st.running = state
-    st.Tokens = 0
+FastFarm:AddTextBox("Max reps/s: " .. FastFarm.maxSendRate, function(inputText)
+    local value = tonumber(inputText)
+    if not value or value ~= value or value == math.huge or value == -math.huge then return end
+    value = math.max(1, value)
+    if value ~= FastFarm.maxSendRate and FastFarm.running then
+        recordStatGain(FastFarm, "Strength", FastFarm.strength.Value)
+        recordStatGain(FastFarm, "Durability", FastFarm.durability.Value)
+        setTimerRunning(FastFarm, false)
+        FastFarm.updateStats()
+    end
+    FastFarm.maxSendRate = value
+    FastFarm.sendRate = math.min(FastFarm.sendRate, FastFarm.maxSendRate)
+end, {clear = false})
+
+FastFarm:AddLabel("Recommended Speed: 462, you can always try more.")
+
+FastFarm.FastRepToggle = FastFarm:AddSwitch("Fast Rep", function(state)
+    recordStatGain(FastFarm, "Strength", FastFarm.strength.Value)
+    recordStatGain(FastFarm, "Durability", FastFarm.durability.Value)
+    setTimerRunning(FastFarm, false)
+    FastFarm.statSamples.Strength = FastFarm.strength.Value
+    FastFarm.statSamples.Durability = FastFarm.durability.Value
+    FastFarm.running = state
+    FastFarm.Tokens = 0
     if state then
-        st.sendRate = math.min(st.initialSendRate, st.maxSendRate)
-        st.LastAt = os.clock()
-        st.lastControlAt = tick()
-        st.lastControlStrength = strengthVal.Value
-        st.lastControlDurability = durabilityVal.Value
-        st.stalledIntervals = 0
-        stStatus.Text = "Strength Status: Preparing | " .. formatNumber(st.sendRate) .. " reps/s"
-        stStartWorker()
+        FastFarm.gainedBaselineSet = true
+        FastFarm.sendRate = math.min(FastFarm.initialSendRate, FastFarm.maxSendRate)
+        FastFarm.LastAt = os.clock()
+        FastFarm.lastControlAt = tick()
+        FastFarm.lastControlStrength = FastFarm.strength.Value
+        FastFarm.lastControlDurability = FastFarm.durability.Value
+        FastFarm.stalledIntervals = 0
+        FastFarm.Status.Text = "Status: Preparing | " .. formatNumber(FastFarm.sendRate) .. " reps/s"
+        FastFarm.Status.TextColor3 = Color3.fromRGB(80, 255, 120)
+        FastFarm.startWorker()
     else
-        stStatus.Text = "Strength Status: Paused"
-        stUpdateRuntime()
+        FastFarm.Status.Text = FastFarm.gainedBaselineSet and "Status: Paused" or "Status: Inactive"
+        FastFarm.Status.TextColor3 = FastFarm.gainedBaselineSet and Color3.fromRGB(255, 180, 70) or Color3.fromRGB(255, 80, 80)
+        FastFarm.updateRuntime()
     end
-    stUpdateStats()
+    FastFarm.updateStats()
 end)
+FastFarm.FastRepToggle:Set(false)
 
---// =========================
---// RUNTIME LOOP
---// =========================
-
+-- Runtime/Average update loop
 task.spawn(function()
-    while task.wait(0.1) do
-        rbUpdateRuntime()
-        stUpdateRuntime()
-        if st.timerStarted and getElapsed(st) >= st.nextAverageElapsed then
-            stUpdateAverage()
-            st.nextAverageElapsed = getElapsed(st) + 10
+    while true do
+        FastFarm.updateRuntime()
+        if FastFarm.timerStarted and getElapsed(FastFarm) >= FastFarm.nextAverageElapsed then
+            FastFarm.updateAverage()
+            FastFarm.nextAverageElapsed = getElapsed(FastFarm) + 10
         end
+        task.wait(0.1)
     end
 end)
 
-FastFarm:AddLabel("❤️ This Tab Made ByHenne")
+FastFarm:AddHeading("Pet Equip")
+
+FastFarm:AddButton("Equip Rep Pets", function()
+    equipBestFarmingPets()
+end)
+
+FastFarm:AddButton("Equip Rebirth Pets", function()
+    equipBestRebirthPets()
+end)
+
+FastFarm:AddLabel("This Tab Made ByHenne ❤️")
 
 local pets = window:AddTab("Pets")
 pets:AddLabel("💰 Auto Buy")
@@ -3572,77 +3400,46 @@ pets:AddSwitch("📫 Auto Trade", function(state)
     end)
 end)
 
---// =========================
---// BOSS FARM 
---// =========================
+-- ============================================================
+-- BOSS TAB (3. Dosyadan - Young Hub Auto Boss)
+-- ============================================================
+
+local services = {
+    Players = game:GetService("Players"),
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    RunService = game:GetService("RunService"),
+    VirtualInputManager = game:GetService("VirtualInputManager"),
+    CollectionService = game:GetService("CollectionService"),
+    Workspace = workspace,
+}
+
+local LocalPlayer = services.Players.LocalPlayer
+
+local function formatNumber(num)
+    if num >= 1e18 then return string.format("%.2fQi", num/1e18) end
+    if num >= 1e15 then return string.format("%.2fQa", num/1e15) end
+    if num >= 1e12 then return string.format("%.2fT", num/1e12) end
+    if num >= 1e9 then return string.format("%.2fB", num/1e9) end
+    if num >= 1e6 then return string.format("%.2fM", num/1e6) end
+    if num >= 1e3 then return string.format("%.2fK", num/1e3) end
+    return string.format("%.0f", num)
+end
+
 local Boss = window:AddTab("Boss")
 
-local BossServices = {
-    Workspace = game:GetService("Workspace"),
-    CollectionService = game:GetService("CollectionService"),
-    VirtualInputManager = game:GetService("VirtualInputManager"),
-    ReplicatedStorage = game:GetService("ReplicatedStorage"),
-    Players = game:GetService("Players"),
-}
-
-local utils = {
-    playerData = {
-        Player = game:GetService("Players").LocalPlayer,
-        Character = nil,
-        Humanoid = nil,
-        Backpack = nil,
-    },
-    remotes = {},
-    isCurrent = function()
-        return true
-    end,
-    formatNumber = function(n)
-        if n >= 1e18 then return string.format("%.2fQi", n / 1e18) end
-        if n >= 1e15 then return string.format("%.2fQa", n / 1e15) end
-        if n >= 1e12 then return string.format("%.2fT", n / 1e12) end
-        if n >= 1e9 then return string.format("%.2fB", n / 1e9) end
-        if n >= 1e6 then return string.format("%.2fM", n / 1e6) end
-        if n >= 1e3 then return string.format("%.2fK", n / 1e3) end
-        return string.format("%.0f", n)
-    end,
-}
-
---// Remotes
-pcall(function()
-    local rEvents = services.ReplicatedStorage:WaitForChild("rEvents", 10)
-    if rEvents then
-        utils.remotes.MuscleEvent = utils.playerData.Player:WaitForChild("muscleEvent", 10)
-    end
-end)
-
---// Player character tracking
-local plr = utils.playerData.Player
-local function updateChar()
-    utils.playerData.Character = plr.Character
-    utils.playerData.Humanoid = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-    utils.playerData.Backpack = plr:FindFirstChild("Backpack")
-end
-updateChar()
-plr.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    updateChar()
-end)
-
---// UI Labels
 Boss:AddLabel("👹 Boss Farming:")
 Boss.StatusLabel = Boss:AddLabel("Status: Waiting for Boss")
 Boss.BossLabel = Boss:AddLabel("Boss: None")
 Boss.HealthLabel = Boss:AddLabel("Health: 0 / 0")
 Boss.NextBossLabel = Boss:AddLabel("Next Boss: N/A")
 
---// Runtime & Data
 Boss.runtime = {
     events = nil,
     bossFolder = nil,
     currentHealth = 0,
     health = 0,
     maxHealth = 0,
-    generation = 0,
+    generation = 0
 }
 
 Boss.Data = {
@@ -3658,15 +3455,11 @@ Boss.Data = {
     EvadeDistance = 230,
     PunchBehindDistance = 45,
     StompHealthThreshold = 0.35,
-    DodgeStomps = false,
+    DodgeStomps = false
 }
 
---// =========================
---// FIND BOSS
---// =========================
 Boss.findActiveBoss = function()
     local model, stats, health, maxHealth, hitbox
-
     pcall(function()
         for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventBoss")) do
             if candidate:IsA("Model") and candidate:IsDescendantOf(services.Workspace) then
@@ -3707,15 +3500,12 @@ Boss.findActiveBoss = function()
             return
         end
 
-        Boss.runtime.currentHealth = health and health.Value
-            or services.Workspace:GetAttribute("BossHealth")
-            or 0
-
+        Boss.runtime.currentHealth = health and health.Value or services.Workspace:GetAttribute("BossHealth") or 0
         if typeof(Boss.runtime.currentHealth) == "number" and Boss.runtime.currentHealth <= 0 then
             model = nil
+            return
         end
     end)
-
     if not model then return nil end
     return model, health, maxHealth, hitbox
 end
@@ -3738,66 +3528,25 @@ Boss.formatCountdown = function(seconds)
     return string.format("%dh %dmin %ds", hours, minutes, seconds)
 end
 
---// =========================
---// LEAVE MACHINE
---// =========================
-Boss.leaveExerciseMachine = function()
-    pcall(function()
-        local character = utils.playerData.Player.Character
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        local root = character and character:FindFirstChild("HumanoidRootPart")
-        if not humanoid or humanoid.Health <= 0 then return end
-
-        services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
-        humanoid.Sit = false
-        humanoid.Jump = true
-        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-        if root then
-            root.AssemblyLinearVelocity = Vector3.new(0, math.max(root.AssemblyLinearVelocity.Y, 50), 0)
-        end
-        task.wait(0.2)
-        services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-    end)
-end
-
---// =========================
---// PAUSE / RESUME TRAINING
---// =========================
 Boss.pauseTraining = function()
     if Boss.Data.TrainingSnapshot then return end
-
-    local farming = window and window.FastFarmTab or nil
-    -- Kryvex UI'de farming tab referansı yoksa sadece snapshot al
     Boss.Data.TrainingSnapshot = {
-        AutoFarm = _G.repToggle or false,
-        Weight = _G.WeightOn or false,
-        Pushups = _G.PushupsOn or false,
-        Handstands = _G.HandstandsOn or false,
-        Situps = _G.SitupsOn or false,
+        FastRep = FastFarm.FastRepToggle and FastFarm.running or false,
     }
-
-    _G.repToggle = false
-    _G.WeightOn = false
-    _G.PushupsOn = false
-    _G.HandstandsOn = false
-    _G.SitupsOn = false
+    if FastFarm.FastRepToggle then
+        pcall(function() FastFarm.FastRepToggle:Set(false) end)
+    end
 end
 
 Boss.resumeTraining = function()
     local snapshot = Boss.Data.TrainingSnapshot
     if not snapshot then return end
     Boss.Data.TrainingSnapshot = nil
-
-    if snapshot.AutoFarm then _G.repToggle = true end
-    if snapshot.Weight then _G.WeightOn = true end
-    if snapshot.Pushups then _G.PushupsOn = true end
-    if snapshot.Handstands then _G.HandstandsOn = true end
-    if snapshot.Situps then _G.SitupsOn = true end
+    if snapshot.FastRep and FastFarm.FastRepToggle then
+        pcall(function() FastFarm.FastRepToggle:Set(true) end)
+    end
 end
 
---// =========================
---// BOSS HEAD
---// =========================
 Boss.getBossHeadPosition = function(model, hitbox)
     local head = model:FindFirstChild("Head", true) or model:FindFirstChild("head", true)
     if head and head:IsA("BasePart") then return head.Position end
@@ -3805,18 +3554,13 @@ Boss.getBossHeadPosition = function(model, hitbox)
     return hitbox.Position + Vector3.new(0, hitbox.Size.Y * 0.35, 0)
 end
 
---// =========================
---// ALIVE CHARACTER
---// =========================
 Boss.getAliveCharacter = function(generation, timeout)
     local startedAt = os.clock()
     repeat
-        local character = utils.playerData.Player.Character
+        local character = LocalPlayer.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         if root and humanoid and humanoid.Health > 0 then
-            utils.playerData.Character = character
-            utils.playerData.Humanoid = humanoid
             return character, root, humanoid
         end
         Boss.StatusLabel.Text = "Status: Waiting for Respawn"
@@ -3826,9 +3570,6 @@ Boss.getAliveCharacter = function(generation, timeout)
         or (timeout and os.clock() - startedAt >= timeout)
 end
 
---// =========================
---// EVADE
---// =========================
 Boss.evadeAttack = function(model, hitbox, root, humanoid)
     local sequence = model:GetAttribute("BossAttackSequence")
     local attackKind = model:GetAttribute("BossAttackKind")
@@ -3855,7 +3596,6 @@ Boss.evadeAttack = function(model, hitbox, root, humanoid)
             direction = Vector3.new(hitbox.CFrame.LookVector.X, 0, hitbox.CFrame.LookVector.Z)
         end
         if direction.Magnitude < 1 then direction = Vector3.new(0, 0, 1) end
-
         local safePosition = center - direction.Unit * Boss.Data.PunchBehindDistance
         root.CFrame = CFrame.lookAt(safePosition, center)
         root.AssemblyLinearVelocity = Vector3.zero
@@ -3881,7 +3621,6 @@ Boss.evadeAttack = function(model, hitbox, root, humanoid)
     end
     if direction.Magnitude < 1 then direction = Vector3.new(1, 0, 0) end
     direction = direction.Unit
-
     local safePosition = attackCFrame.Position + direction * Boss.Data.EvadeDistance + Vector3.new(0, 18, 0)
     root.CFrame = CFrame.lookAt(safePosition, attackCFrame.Position)
     root.AssemblyLinearVelocity = Vector3.zero
@@ -3890,11 +3629,8 @@ Boss.evadeAttack = function(model, hitbox, root, humanoid)
     return "Stomp"
 end
 
---// =========================
---// ATTACK
---// =========================
 Boss.attack = function(model, health, maxHealth, hitbox)
-    local character = utils.playerData.Player.Character
+    local character = LocalPlayer.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
     if not root or not humanoid or humanoid.Health <= 0 then return end
@@ -3902,9 +3638,11 @@ Boss.attack = function(model, health, maxHealth, hitbox)
     local evadeMode = Boss.evadeAttack(model, hitbox, root, humanoid)
     if evadeMode == "Stomp" then return end
 
-    local backpack = utils.playerData.Backpack
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
     local punch = character:FindFirstChild("Punch")
-    if not punch and backpack then punch = backpack:FindFirstChild("Punch") end
+    if not punch and backpack then
+        punch = backpack:FindFirstChild("Punch")
+    end
     if punch and punch.Parent ~= character then
         pcall(function() humanoid:EquipTool(punch) end)
     end
@@ -3933,10 +3671,8 @@ Boss.attack = function(model, health, maxHealth, hitbox)
     if os.clock() - Boss.Data.LastPunch >= Boss.Data.PunchInterval then
         Boss.Data.LastPunch = os.clock()
         pcall(function()
-            if utils.remotes.MuscleEvent then
-                utils.remotes.MuscleEvent:FireServer("punch", "leftHand")
-                utils.remotes.MuscleEvent:FireServer("punch", "rightHand")
-            end
+            LocalPlayer.muscleEvent:FireServer("punch", "leftHand")
+            LocalPlayer.muscleEvent:FireServer("punch", "rightHand")
             if punch then punch:Activate() end
         end)
     end
@@ -3944,12 +3680,9 @@ Boss.attack = function(model, health, maxHealth, hitbox)
     Boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
     Boss.runtime.health = Boss.getBossHealth(health)
     Boss.runtime.maxHealth = Boss.getBossMaxHealth(maxHealth)
-    Boss.HealthLabel.Text = "Health: " .. utils.formatNumber(Boss.runtime.health) .. " / " .. utils.formatNumber(Boss.runtime.maxHealth)
+    Boss.HealthLabel.Text = "Health: " .. formatNumber(Boss.runtime.health) .. " / " .. formatNumber(Boss.runtime.maxHealth)
 end
 
---// =========================
---// CHEST
---// =========================
 Boss.findChest = function()
     local chest
     for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventChest")) do
@@ -3958,7 +3691,9 @@ Boss.findChest = function()
             break
         end
     end
-    if not chest then chest = services.Workspace:FindFirstChild("BossChest", true) end
+    if not chest then
+        chest = services.Workspace:FindFirstChild("BossChest", true)
+    end
     if not chest then
         for _, candidate in ipairs(services.Workspace:GetDescendants()) do
             if candidate:IsA("ProximityPrompt") and candidate.Name == "bossChestPrompt" then
@@ -3973,7 +3708,6 @@ Boss.findChest = function()
     local part = prompt and prompt.Parent
         or (chest:IsA("Model") and (chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart", true)))
         or chest
-
     if part and part:IsA("BasePart") then
         return chest, prompt, part
     end
@@ -4007,19 +3741,21 @@ Boss.collectChest = function(generation)
             task.wait(0.15)
             if prompt and prompt.Parent and fireproximityprompt then
                 pcall(function() fireproximityprompt(prompt) end)
+            else
+                pcall(function()
+                    services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(0.1)
+                    services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                end)
             end
         end
         task.wait(0.25)
     until not Boss.Data.Running
         or Boss.Data.Generation ~= generation
-        or utils.playerData.Player:GetAttribute("BossChestPending") == false
+        or LocalPlayer:GetAttribute("BossChestPending") == false
         or not chest.Parent
         or os.clock() - startedAt >= 12
 end
-
---// =========================
---// CONTINUE SWITCH
---// =========================
 Boss.ContinueSwitch = Boss:AddSwitch("Continue Farming after Boss Kill", function(state)
     Boss.Data.ContinueTraining = state
     if state and Boss.Data.Phase == "Waiting" then
@@ -4029,13 +3765,12 @@ end)
 
 task.defer(function()
     pcall(function()
-        if Boss.ContinueSwitch then Boss.ContinueSwitch:Set(true) end
+        if Boss.ContinueSwitch then
+            Boss.ContinueSwitch:Set(true)
+        end
     end)
 end)
 
---// =========================
---// BOSS INFO LOOP
---// =========================
 task.spawn(function()
     while true do
         local success = pcall(function()
@@ -4044,7 +3779,7 @@ task.spawn(function()
                 local currentHealth = Boss.getBossHealth(health)
                 local currentMaxHealth = Boss.getBossMaxHealth(maxHealth)
                 Boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
-                Boss.HealthLabel.Text = "Health: " .. utils.formatNumber(currentHealth) .. " / " .. utils.formatNumber(currentMaxHealth)
+                Boss.HealthLabel.Text = "Health: " .. formatNumber(currentHealth) .. " / " .. formatNumber(currentMaxHealth)
                 Boss.NextBossLabel.Text = "Next Boss: Current boss active"
             else
                 Boss.BossLabel.Text = "Boss: None"
@@ -4063,9 +3798,6 @@ task.spawn(function()
     end
 end)
 
---// =========================
---// AUTO BOSS FARM
---// =========================
 Boss.AutoFarmSwitch = Boss:AddSwitch("Auto Farm Boss", function(state)
     Boss.Data.Running = state
     Boss.Data.Generation += 1
@@ -4082,9 +3814,10 @@ Boss.AutoFarmSwitch = Boss:AddSwitch("Auto Farm Boss", function(state)
 
     task.spawn(function()
         local wasFighting = false
-        while utils.isCurrent() and Boss.Data.Running and Boss.Data.Generation == generation do
+        while Boss.Data.Running and Boss.Data.Generation == generation do
             local success = pcall(function()
                 local model, health, maxHealth, hitbox = Boss.findActiveBoss()
+
                 if model then
                     if not wasFighting then
                         wasFighting = true
@@ -4095,7 +3828,7 @@ Boss.AutoFarmSwitch = Boss:AddSwitch("Auto Farm Boss", function(state)
                         pcall(function() Boss.pauseTraining() end)
                     end
 
-                    local character = utils.playerData.Player.Character
+                    local character = LocalPlayer.Character
                     local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 
                     if humanoid and humanoid.Health > 0 then
@@ -4129,6 +3862,7 @@ Boss.AutoFarmSwitch = Boss:AddSwitch("Auto Farm Boss", function(state)
     end)
 end)
 
+Boss:AddLabel("❤️ this tab made ByHenne")
 
 local estadisticas = window:AddTab("Stats")
 
