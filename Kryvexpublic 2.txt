@@ -3575,10 +3575,9 @@ end)
 --// =========================
 --// BOSS FARM 
 --// =========================
-
 local Boss = window:AddTab("Boss")
 
-local services = {
+local BossServices = {
     Workspace = game:GetService("Workspace"),
     CollectionService = game:GetService("CollectionService"),
     VirtualInputManager = game:GetService("VirtualInputManager"),
